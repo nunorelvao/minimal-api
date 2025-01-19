@@ -1,2 +1,25 @@
 @minimal_api_HostAddress = http://localhost:5159
 
+@operator_id={{operator_id}}
+@id={{id}}
+
+GET {{minimal_api_HostAddress}}/collisions/{{operator_id}}
+
+###
+
+GET {{minimal_api_HostAddress}}/collision/{{id}}
+
+###
+
+GET {{minimal_api_HostAddress}}/collisions/alerts/{{operator_id}}
+
+###
+
+POST {{minimal_api_HostAddress}}/collision/{{operator_id}}
+
+###
+
+PATCH {{minimal_api_HostAddress}}/collision/{{operator_id}}
+
+###
+
