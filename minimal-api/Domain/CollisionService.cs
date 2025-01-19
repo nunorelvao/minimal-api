@@ -7,29 +7,37 @@ namespace minimal_api.Domain
 {
     public class CollisionService(CollisionDbContext db, ILogger<CollisionService>? logger) : ICollisionService
     {
-        public async Task<List<CollisionStatusDto>> GetCollisionsWarningsByOperatorIdAsync(string operatorId,
-            CancellationToken ct = default)
+        public async Task<List<CollisionStatusDto>?> GetCollisionsWarningsByOperatorIdAsync(string operatorId, CancellationToken ct = default)
         {
-            var dbListSortedWithRules = await db.Collisions
-                .Where(c => c != null &&
-                            c.ProbabilityOfCollision >= 0.75 &&
-                            c.CollisionDate > DateTimeOffset.UtcNow &&
-                            c.OperatorId == operatorId &&
-                            !c.IsCanceled)
-                .OrderByDescending(c => c!.ProbabilityOfCollision)
-                .ThenByDescending(c => c!.CollisionDate)
-                .GroupBy(c => c!.SatelliteId)
-                .Select(grp => new CollisionStatusDto()
-                {
-                    satellite_id = grp.FirstOrDefault()!.SatelliteId,
-                    highest_probability_of_collision = grp.FirstOrDefault()!.ProbabilityOfCollision,
-                    earliest_collision_date = grp.FirstOrDefault()!.CollisionDate.FromUniversalDateTimeOffset(),
-                    chaser_object_id = grp.FirstOrDefault()!.ChaserObjectId
-                })
-                .AsNoTracking() //for faster retrieval as will not change data
-                .ToListAsync(ct);
+            try
+            {
+                var dbListSortedWithRules = await db.Collisions
+                    .Where(c => c != null &&
+                                c.ProbabilityOfCollision >= 0.75 &&
+                                c.CollisionDate > DateTimeOffset.UtcNow &&
+                                c.OperatorId == operatorId &&
+                                !c.IsCanceled)
+                    .OrderByDescending(c => c!.ProbabilityOfCollision)
+                    .ThenByDescending(c => c!.CollisionDate)
+                    .GroupBy(c => c!.SatelliteId)
+                    .Select(grp => new CollisionStatusDto()
+                    {
+                        satellite_id = grp.FirstOrDefault()!.SatelliteId,
+                        highest_probability_of_collision = grp.FirstOrDefault()!.ProbabilityOfCollision,
+                        earliest_collision_date = grp.FirstOrDefault()!.CollisionDate.FromUniversalDateTimeOffset(),
+                        chaser_object_id = grp.FirstOrDefault()!.ChaserObjectId
+                    })
+                    .AsNoTracking() //for faster retrieval as will not change data
+                    .ToListAsync(ct);
 
-            return dbListSortedWithRules;
+                return dbListSortedWithRules;
+            }
+            catch (OperationCanceledException ex)
+            {
+                logger?.LogWarning($"Cancellation requested : {ex.Message}");
+            }
+            
+            return null;
         }
 
         public async Task<Collision?> GetCollisionByIdAsync(Guid id, CancellationToken ct = default)
@@ -37,8 +45,7 @@ namespace minimal_api.Domain
             return await db.Collisions.FirstOrDefaultAsync(c => c != null && c.Id == id, cancellationToken: ct);
         }
 
-        public async Task<(bool, string?)> SaveCollisionAsync(string operatorId, CollisionDto dto,
-            CancellationToken ct = default)
+        public async Task<(bool, string?)> SaveCollisionAsync(string operatorId, CollisionDto dto, CancellationToken ct = default)
         {
             if (!ValidateRequestBasicRules(operatorId, dto, out var errorValidation))
                 return (false, errorValidation);
@@ -80,7 +87,8 @@ namespace minimal_api.Domain
             return (true, collision.Id.ToString());
         }
 
-        public async Task<(bool, string?)> CancelCollisionAsync(string operatorId, CollisionDto dto, CancellationToken ct = default)
+        public async Task<(bool, string?)> CancelCollisionAsync(string operatorId, CollisionDto dto,
+            CancellationToken ct = default)
         {
             if (!ValidateRequestBasicRules(operatorId, dto, out var errorValidation))
                 return (false, errorValidation);
@@ -108,7 +116,8 @@ namespace minimal_api.Domain
             return (true, collisionTopMostRecent.Id.ToString());
         }
 
-        public async Task<List<CollisionDto>> GetCollisionsForOperatorAsync(string operatorId, CancellationToken ct = default)
+        public async Task<List<CollisionDto>> GetCollisionsForOperatorAsync(string operatorId,
+            CancellationToken ct = default)
         {
             var dbList = await db.Collisions.Where(c => c != null && c.OperatorId == operatorId).ToListAsync(ct);
 
@@ -139,14 +148,14 @@ namespace minimal_api.Domain
                 logger?.LogWarning(error);
                 return false;
             }
-            
+
             if (operatorId != dto.operator_id)
             {
                 error = $"The operator requesting {operatorId} is not the same as in request {dto.operator_id}";
                 logger?.LogWarning(error);
                 return false;
             }
-            
+
             if (dto.collision_date.ToUniversalDateTimeOffset() <= DateTime.UtcNow)
             {
                 error =

@@ -10,6 +10,7 @@ namespace minimal_api.Helpers
     {
         private readonly ILogger<DummyDataHelper> _logger;
         private readonly IServiceProvider _serviceProvider;
+
         public DummyDataHelper(
             IServiceProvider serviceProvider,
             ILogger<DummyDataHelper> logger)
@@ -23,46 +24,49 @@ namespace minimal_api.Helpers
         /// </summary>
         public async Task GenerateData()
         {
-            using (var scope = _serviceProvider.CreateScope())
-            {
-                var dbContext = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
 
-                //generate data for operatorid = 001
-                //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
-                await AddRandomDataForOperator(dbContext, "001", "42-001");
-                await AddRandomDataForOperator(dbContext, "001", "42-002");
+            //generate data for operatorid = 001
+            //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
+            await AddRandomDataForOperator(dbContext, "001", "42-001");
+            await AddRandomDataForOperator(dbContext, "001", "42-002");
 
-                //generate data for operatorid = 002
-                //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
-                await AddRandomDataForOperator(dbContext, "002", "42-001");
-                await AddRandomDataForOperator(dbContext, "002", "42-002");
+            //generate data for operatorid = 002
+            //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
+            await AddRandomDataForOperator(dbContext, "002", "42-001");
+            await AddRandomDataForOperator(dbContext, "002", "42-002");
 
-                //generate data for operatorid = 003
-                //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
-                await AddRandomDataForOperator(dbContext, "003", "42-001");
-                await AddRandomDataForOperator(dbContext, "003", "42-002");
+            //generate data for operatorid = 003
+            //adding same data for different satelliteId so it can be sure to have at least 2 in grouping by satelliteId
+            await AddRandomDataForOperator(dbContext, "003", "42-001");
+            await AddRandomDataForOperator(dbContext, "003", "42-002");
 
-                await dbContext.SaveChangesAsync();
-                _logger.LogInformation("Dummy data populated!");
-            }
+            await dbContext.SaveChangesAsync();
+            _logger.LogInformation("Dummy data populated!");
         }
 
-        private async Task AddRandomDataForOperator(CollisionDbContext dbContext, string operatorId, string satelliteId)
+        private async Task AddRandomDataForOperator(CollisionDbContext dbContext, string operatorId, string satelliteId,
+            int maxNumberOfCopies = 1)
         {
-            for (var i = 10; i < 21; i++)
+            for (var m = 0; m < maxNumberOfCopies; m++)
             {
-                await dbContext.AddAsync(
-                new Collision()
+                for (var i = 10; i < 21; i++)
                 {
-                    MessageId = "M" + satelliteId + i,
-                    CollisionEventId = i.ToString(),
-                    SatelliteId = satelliteId,
-                    OperatorId = operatorId,
-                    ProbabilityOfCollision = NextRandomDouble2Digit(new Random()),
-                    CollisionDate =  (DateTime.Now.AddDays(30).ToString("yyyyMMdd") +"T" + i + "000100Z").ToUniversalDateTimeOffset(),
-                    ChaserObjectId = "2016-" + i,
-                    CreatedDate = DateTime.UtcNow
-                });
+                    await dbContext.AddAsync(
+                        new Collision()
+                        {
+                            MessageId = "M" + satelliteId + i,
+                            CollisionEventId = i.ToString(),
+                            SatelliteId = satelliteId,
+                            OperatorId = operatorId,
+                            ProbabilityOfCollision = NextRandomDouble2Digit(new Random()),
+                            CollisionDate = (DateTime.Now.AddDays(30).ToString("yyyyMMdd") + "T" + i + "000100Z")
+                                .ToUniversalDateTimeOffset(),
+                            ChaserObjectId = "2016-" + i,
+                            CreatedDate = DateTime.UtcNow
+                        });
+                }
             }
         }
 

@@ -8,7 +8,7 @@
         /// <param name="operatorId">The operator identifier .</param>
         /// <param name="ct"></param>
         /// <returns></returns>
-        Task<List<CollisionStatusDto>> GetCollisionsWarningsByOperatorIdAsync(string operatorId,
+        Task<List<CollisionStatusDto>?> GetCollisionsWarningsByOperatorIdAsync(string operatorId,
             CancellationToken ct = default);
 
         /// <summary>
