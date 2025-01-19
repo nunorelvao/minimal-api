@@ -11,7 +11,7 @@ public class TestWebApplicationFactory<TProgram>
     {
         builder.ConfigureHostConfiguration(config =>
         {
-            config.AddInMemoryCollection(new Dictionary<string, string?> { { "SomeKey", "SomeValue" } });
+            config.AddInMemoryCollection(new Dictionary<string, string> { { "SomeKey", "SomeValue" } });
         });
 
         builder.ConfigureServices(services =>
