@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
+using minimal_api.Domain.Models;
 
 namespace minimal_api_tests.IntegrationTests
 {
