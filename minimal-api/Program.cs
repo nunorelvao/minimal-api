@@ -4,6 +4,7 @@ using minimal_api.Helpers;
 using minimal_api.Infrastructure;
 using Asp.Versioning;
 using Asp.Versioning.Conventions;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace minimal_api
@@ -15,7 +16,7 @@ namespace minimal_api
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-            builder.Services.AddDbContext<CollisionDbContext>(opt => opt.UseInMemoryDatabase("ColisionDb"));
+            builder.Services.AddDbContext<CollisionDbContext>(opt => opt.UseInMemoryDatabase("CollisionsDb"));
             builder.Services.AddDatabaseDeveloperPageExceptionFilter();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
@@ -52,53 +53,81 @@ namespace minimal_api
                     .ReportApiVersions()
                     .Build();
 
-            //Simple minimal API to get all collision for the operator_id (please use only this to see values in InmemoryDb for that operator),
+            //Simple minimal API to get all collision for the operator_id (please use only this to see values in InMemoryDb for that operator),
             //This would not be in production code used only to compare with returns case needed
-            app.MapGet("/collisionsforoperator", async (string operator_id_invoker, ICollisionService collisionService) =>
+            app.MapGet("/collisions/{operatorid}", async ([FromRoute]string operatorid, ICollisionService collisionService, CancellationToken ct = default) =>
             {
-                var list = await collisionService.GetCollisionsForOperatorAsync(operator_id_invoker);
+                var list = await collisionService.GetCollisionsForOperatorAsync(operatorid, ct);
+                if (ct.IsCancellationRequested)
+                {
+                    return Results.StatusCode(499); // Client closed the request
+                }
                 return list.Any() ? Results.Ok(list) : Results.NoContent();
             })
             .WithName("GetCollisionsForOperator")
-            .WithDescription("Return the collision of an operator (who is using the API).<br/>" +
+            .WithDescription("Return the collisions of an operator.<br/>" +
              "Please use operator_id 001, 002 and 003 of the dummy data if no new data inserted.")
-            .WithSummary("NOTE: THIS IS A HELPER API JUST TO CHECK VALUES IN MEMORYDB NOT INTENDED FOR PRODUCTION")
+            .WithSummary("NOTE: THIS IS A HELPER API JUST TO CHECK VALUES IN MEMORY DB NOT INTENDED FOR PRODUCTION")
             .WithOpenApi()
             .WithApiVersionSet(versionSet)
             .MapToApiVersion(1.0); 
+            
+            //Simple minimal API to get collision by id
+            app.MapGet("/collision/{id}", async ([FromRoute]Guid id, ICollisionService collisionService,  CancellationToken ct = default) =>
+                {
+                    var collision = await collisionService.GetCollisionByIdAsync(id, ct);
+                    if (ct.IsCancellationRequested)
+                    {
+                        return Results.StatusCode(499); // Client closed the request
+                    }
+                    return collision != null ? Results.Ok(collision) : Results.NoContent();
+                })
+                .WithName("GetCollisionById")
+                .WithDescription("Return the collision by Id.")
+                .WithOpenApi()
+                .WithApiVersionSet(versionSet)
+                .MapToApiVersion(1.0);
 
             //Simple minimal API to get all collision alerts for the operator_id
-            app.MapGet("/collisionalerts", async (string operator_id_invoker, ICollisionService collisionService) =>
+            app.MapGet("/collisions/alerts/{operatorid}", async ([FromRoute]string operatorid, ICollisionService collisionService,  CancellationToken ct = default) =>
             {
-                var list = await collisionService.GetColisionsWarningsByOperatorIdAsync(operator_id_invoker);
+                var list = await collisionService.GetCollisionsWarningsByOperatorIdAsync(operatorid, ct);
+                if (ct.IsCancellationRequested)
+                {
+                    return Results.StatusCode(499); // Client closed the request
+                }
                 return list.Any() ? Results.Ok(list) : Results.NoContent();
             })
-            .WithName("GetCollisionAlerts")
-            .WithDescription("Return the collision status of warning for all the satellites of an operator (who is using the API).<br/>" +
-             "Please use operator_id 001, 002 and 003 of the dummy data if no new data inserted")
+            .WithName("GetCollisionsAlerts")
+            .WithDescription("Return the collision status of warning for all the satellites of an operator.<br/>" +
+             "Please use operatorid 001, 002 and 003 of the dummy data if no new data inserted")
             .WithOpenApi()
             .WithApiVersionSet(versionSet)
             .MapToApiVersion(1.0);
 
             //Simple minimal API to POST a collision record
-            app.MapPost("/collision", async (string operator_id_invoker, CollisionDto collisionDto, ICollisionService collisionService) =>
+            app.MapPost("/collision/{operatorid}", async ([FromRoute]string operatorid, [FromBody]CollisionDto collisionDto, ICollisionService collisionService, CancellationToken ct = default) =>
             {
-                var dbId = await collisionService.SaveCollisionAsync(operator_id_invoker, collisionDto);
-                return dbId != Guid.Empty ? Results.Created($"/colision/{dbId}", dbId) : Results.UnprocessableEntity();
+                var (success, result) = await collisionService.SaveCollisionAsync(operatorid, collisionDto, ct);
+                return  success ? Results.Created($"/collision/{result}", result) : Results.UnprocessableEntity(result);
             })
             .WithName("PostCollision")
             .WithDescription("Insert new collision data, please notice the mandatory fields.<br/>")
             .WithOpenApi()
             .WithApiVersionSet(versionSet)
             .MapToApiVersion(1.0);
-
+            
             //Simple minimal API to PATCH a collision record with IsCanceled
-            app.MapPatch("/collisioncancel", async (string operator_id_invoker, CollisionDto collisionDto, ICollisionService collisionService) =>
+            app.MapPatch("/collision/{operatorid}", async ([FromRoute]string operatorid, [FromBody]CollisionDto collisionDto, ICollisionService collisionService,  CancellationToken ct = default) =>
             {
-                var dbId = await collisionService.CancelCollisionAsync(operator_id_invoker, collisionDto);
-                return dbId != Guid.Empty ? Results.Accepted($"/collisioncancel/{dbId}", dbId) : Results.UnprocessableEntity();
+                var (success, result) = await collisionService.CancelCollisionAsync(operatorid, collisionDto, ct);
+                if (ct.IsCancellationRequested)
+                {
+                    return Results.StatusCode(499); // Client closed the request
+                }
+                return  success ? Results.Accepted($"/collision/{result}", result) : Results.UnprocessableEntity(result);
             })
-            .WithName("CancelCollision")
+            .WithName("PatchCollision")
             .WithDescription("Cancels a collision data, please notice the mandatory fields.<br/>")
             .WithOpenApi()
             .WithApiVersionSet(versionSet)

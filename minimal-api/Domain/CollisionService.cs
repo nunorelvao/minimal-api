@@ -5,52 +5,59 @@ using Microsoft.EntityFrameworkCore;
 
 namespace minimal_api.Domain
 {
-    public class CollisionService : ICollisionService
+    public class CollisionService(CollisionDbContext db, ILogger<CollisionService>? logger) : ICollisionService
     {
-        private readonly CollisionDbContext _db;
-        private readonly ILogger<CollisionService> _logger;
-        public CollisionService(CollisionDbContext db, ILogger<CollisionService> logger)
+        public async Task<List<CollisionStatusDto>> GetCollisionsWarningsByOperatorIdAsync(string operatorId,
+            CancellationToken ct = default)
         {
-            _db = db;
-            _logger = logger;
-        }
-
-        public async Task<List<CollisionStatusDto>> GetColisionsWarningsByOperatorIdAsync(string operatorIdInvoker)
-        {
-            var dbListSortedWithRules = await _db.Collisions
-                .Where(c => c.ProbabilityOfCollision >= 0.75 && c.CollisionDate > DateTimeOffset.UtcNow && c.OperatorId == operatorIdInvoker && !c.IsCanceled)
-                .OrderByDescending(c => c.ProbabilityOfCollision)
-                .ThenByDescending(c => c.CollisionDate)
-                .GroupBy(c => c.SatelliteId)
+            var dbListSortedWithRules = await db.Collisions
+                .Where(c => c != null &&
+                            c.ProbabilityOfCollision >= 0.75 &&
+                            c.CollisionDate > DateTimeOffset.UtcNow &&
+                            c.OperatorId == operatorId &&
+                            !c.IsCanceled)
+                .OrderByDescending(c => c!.ProbabilityOfCollision)
+                .ThenByDescending(c => c!.CollisionDate)
+                .GroupBy(c => c!.SatelliteId)
                 .Select(grp => new CollisionStatusDto()
                 {
-                    satellite_id = grp.First().SatelliteId,
-                    highest_probability_of_collision = grp.First().ProbabilityOfCollision,
-                    earliest_collision_date = grp.First().CollisionDate.FromUniversalDateTimeOffset(),
-                    chaser_object_id = grp.First().ChaserObjectId
+                    satellite_id = grp.FirstOrDefault()!.SatelliteId,
+                    highest_probability_of_collision = grp.FirstOrDefault()!.ProbabilityOfCollision,
+                    earliest_collision_date = grp.FirstOrDefault()!.CollisionDate.FromUniversalDateTimeOffset(),
+                    chaser_object_id = grp.FirstOrDefault()!.ChaserObjectId
                 })
                 .AsNoTracking() //for faster retrieval as will not change data
-                .ToListAsync();
+                .ToListAsync(ct);
 
             return dbListSortedWithRules;
         }
 
-        public async Task<Guid> SaveCollisionAsync(string operatorIdInvoker, CollisionDto dto)
+        public async Task<Collision?> GetCollisionByIdAsync(Guid id, CancellationToken ct = default)
         {
-            if (!ValidateRequestBasicRules(operatorIdInvoker, dto))
-                return Guid.Empty;
+            return await db.Collisions.FirstOrDefaultAsync(c => c != null && c.Id == id, cancellationToken: ct);
+        }
+
+        public async Task<(bool, string?)> SaveCollisionAsync(string operatorId, CollisionDto dto,
+            CancellationToken ct = default)
+        {
+            if (!ValidateRequestBasicRules(operatorId, dto, out var errorValidation))
+                return (false, errorValidation);
 
             var collisionsForSatellite =
-                await _db.Collisions
-                .Where(c => c.SatelliteId == dto.satellite_id && !c.IsCanceled)
-                .OrderByDescending(c => c.CollisionDate)
-                .AsNoTracking()
-                .ToListAsync();
+                await db.Collisions
+                    .Where(c => c != null &&
+                                c.MessageId == dto.message_id &&
+                                c.SatelliteId == dto.satellite_id &&
+                                !c.IsCanceled)
+                    .OrderByDescending(c => c!.CollisionDate)
+                    .AsNoTracking()
+                    .ToListAsync(ct);
 
-            if (collisionsForSatellite.Any(c => c.MessageId == dto.message_id))
+            if (collisionsForSatellite.Any())
             {
-                _logger.LogWarning("The collision message {message_id} is already present, not persisting to db", dto.message_id);
-                return Guid.Empty;
+                var error = $"The collision message {dto.message_id} is already present, not persisting to db";
+                logger?.LogWarning(error);
+                return (false, error);
             }
 
             //all this mapping would probably be in production handled with a mapper
@@ -66,77 +73,86 @@ namespace minimal_api.Domain
                 ChaserObjectId = dto.chaser_object_id
             };
 
-            _db.Collisions.Add(collision);
+            db.Collisions.Add(collision);
 
-            await _db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
 
-            return collision.Id;
+            return (true, collision.Id.ToString());
         }
 
-        public async Task<Guid> CancelCollisionAsync(string operatorIdInvoker, CollisionDto dto)
+        public async Task<(bool, string?)> CancelCollisionAsync(string operatorId, CollisionDto dto, CancellationToken ct = default)
         {
-            if (!ValidateRequestBasicRules(operatorIdInvoker, dto))
-                return Guid.Empty;
+            if (!ValidateRequestBasicRules(operatorId, dto, out var errorValidation))
+                return (false, errorValidation);
 
-            var collisionsForSatellite =
-                await _db.Collisions
-                .Where(c => c.MessageId == dto.message_id && !c.IsCanceled)
-                .OrderByDescending(c => c.CollisionDate)
-                .ToListAsync();
-
-            if (!collisionsForSatellite.Any())
-            {
-                _logger.LogWarning("No collision message/s {message_id} present in db, cannot cancel", dto.message_id);
-                return Guid.Empty;
-            }
+            var collisionTopMostRecent =
+                await db.Collisions
+                    .Where(c => c != null && c.MessageId == dto.message_id && !c.IsCanceled)
+                    .OrderByDescending(c => c!.CollisionDate)
+                    .FirstOrDefaultAsync(ct);
 
             //cancelling the most recent message
-            var collisionTopMostRecent = collisionsForSatellite.First();
+            if (collisionTopMostRecent == null)
+            {
+                var error = $"No collision message/s {dto.message_id} present in db, cannot cancel";
+                logger?.LogWarning(error);
+                return (false, error);
+            }
+
             collisionTopMostRecent.IsCanceled = true;
             collisionTopMostRecent.UpdatedDate = DateTime.UtcNow;
-            _db.Collisions.Update(collisionTopMostRecent);
+            db.Collisions.Update(collisionTopMostRecent);
 
-            await _db.SaveChangesAsync();
-            return collisionTopMostRecent.Id;
+            await db.SaveChangesAsync(ct);
+
+            return (true, collisionTopMostRecent.Id.ToString());
         }
 
-        public async Task<List<CollisionDto>> GetCollisionsForOperatorAsync(string operatorIdInvoker)
+        public async Task<List<CollisionDto>> GetCollisionsForOperatorAsync(string operatorId, CancellationToken ct = default)
         {
-            var dbList = await _db.Collisions.Where(c => c.OperatorId == operatorIdInvoker).ToListAsync();
+            var dbList = await db.Collisions.Where(c => c != null && c.OperatorId == operatorId).ToListAsync(ct);
 
             var curatedList = new List<CollisionDto>();
-            dbList.ForEach(c => curatedList.Add(new CollisionDto()
+            dbList.ForEach(c =>
             {
-                message_id = c.MessageId,
-                collision_event_id = c.CollisionEventId,
-                satellite_id = c.SatelliteId,
-                operator_id = c.OperatorId,
-                probability_of_collision = c.ProbabilityOfCollision,
-                collision_date = c.CollisionDate.FromUniversalDateTimeOffset(),
-                chaser_object_id = c.ChaserObjectId
-            }));
+                if (c != null)
+                {
+                    curatedList.Add(new CollisionDto()
+                    {
+                        message_id = c.MessageId, collision_event_id = c.CollisionEventId, satellite_id = c.SatelliteId,
+                        operator_id = c.OperatorId, probability_of_collision = c.ProbabilityOfCollision,
+                        collision_date = c.CollisionDate.FromUniversalDateTimeOffset(),
+                        chaser_object_id = c.ChaserObjectId
+                    });
+                }
+            });
+
             return curatedList;
         }
 
-        private bool ValidateRequestBasicRules(string operatorIdInvoker, CollisionDto dto)
+        private bool ValidateRequestBasicRules(string operatorId, CollisionDto dto, out string? error)
         {
-            if (dto.probability_of_collision < 0 || dto.probability_of_collision > 1)
+            error = "";
+            if (dto.probability_of_collision is < 0 or > 1)
             {
-                _logger.LogWarning("The probability_of_collision {probability_of_collision} must be between 0 and 1", dto.probability_of_collision);
+                error = $"The probability_of_collision {dto.probability_of_collision} must be between 0 and 1";
+                logger?.LogWarning(error);
                 return false;
             }
-
-            if (dto.operator_id != operatorIdInvoker)
+            
+            if (operatorId != dto.operator_id)
             {
-                _logger.LogWarning("The operator requesting {operatorIdInvoker} is not the same as in request {operatorID}", operatorIdInvoker, dto.operator_id);
+                error = $"The operator requesting {operatorId} is not the same as in request {dto.operator_id}";
+                logger?.LogWarning(error);
                 return false;
             }
-
+            
             if (dto.collision_date.ToUniversalDateTimeOffset() <= DateTime.UtcNow)
             {
-                _logger.LogWarning("The collision date on the message {collision_date} is older than current date {current_date}, not persisting to db",
-                    dto.collision_date.ToUniversalDateTimeOffset(),
-                    DateTime.UtcNow);
+                error =
+                    $"The collision date on the message {dto.collision_date.ToUniversalDateTimeOffset()} " +
+                    $"is older than current date {DateTime.UtcNow}, not persisting to db";
+                logger?.LogWarning(error);
                 return false;
             }
 

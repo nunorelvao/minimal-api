@@ -14,6 +14,7 @@ namespace minimal_api_tests.IntegrationTests
     {
         private readonly TestWebApplicationFactory<Program> _factory;
         private readonly HttpClient _httpClient;
+
         public EndPointsIntegrationTests(TestWebApplicationFactory<Program> factory)
         {
             _factory = factory;
@@ -27,12 +28,12 @@ namespace minimal_api_tests.IntegrationTests
         {
             //Arrange
             //All data is being arranged at startup of app already on the helper service
-
+            
             //Act
-            var response = await _httpClient.GetAsync("/collisionsforoperator?operator_id_invoker=001");
+            var response = await _httpClient.GetAsync("/collisions/alerts/001");
 
             //Assert
-            var responseData = await response.Content.ReadFromJsonAsync<List<CollisionDto>>();
+            var responseData = await response.Content.ReadFromJsonAsync<List<CollisionStatusDto>>();
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.NotNull(response);
@@ -46,7 +47,7 @@ namespace minimal_api_tests.IntegrationTests
             //All data is being arranged at startup of app already on the helper service
 
             //Act
-            var response = await _httpClient.GetAsync("/collisionsforoperator?operator_id_invoker=123");
+            var response = await _httpClient.GetAsync("/collisions/alerts/123");
 
             //Assert
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -72,7 +73,8 @@ namespace minimal_api_tests.IntegrationTests
                 SatelliteId = satelliteId,
                 OperatorId = operatorId,
                 ProbabilityOfCollision = 1,
-                CollisionDate = (DateTime.Now.AddDays(30).ToString("yyyyMMdd") +"T" + number + "000100Z").ToUniversalDateTimeOffset(),
+                CollisionDate = (DateTime.Now.AddDays(30).ToString("yyyyMMdd") + "T" + number + "000100Z")
+                    .ToUniversalDateTimeOffset(),
                 ChaserObjectId = "2016-" + number,
                 CreatedDate = DateTime.UtcNow
             };
@@ -85,7 +87,7 @@ namespace minimal_api_tests.IntegrationTests
             }
 
             //Act
-            var response = await _httpClient.GetAsync("/collisionalerts?operator_id_invoker=001");
+            var response = await _httpClient.GetAsync("/collisions/alerts/001");
 
             //Assert
             var responseData = await response.Content.ReadFromJsonAsync<List<CollisionStatusDto>>();
@@ -103,11 +105,11 @@ namespace minimal_api_tests.IntegrationTests
             Assert.NotNull(responseData);
             Assert.Contains(responseData,
                 item =>
-                item.satellite_id == expected.satellite_id &&
-                 item.earliest_collision_date == expected.earliest_collision_date &&
-                  item.highest_probability_of_collision == expected.highest_probability_of_collision &&
-                   item.chaser_object_id == expected.chaser_object_id
-                );
+                    item.satellite_id == expected.satellite_id &&
+                    item.earliest_collision_date == expected.earliest_collision_date &&
+                    item.highest_probability_of_collision == expected.highest_probability_of_collision &&
+                    item.chaser_object_id == expected.chaser_object_id
+            );
             Assert.True(responseData.Count > 0);
         }
 
@@ -127,7 +129,8 @@ namespace minimal_api_tests.IntegrationTests
                 SatelliteId = satelliteId,
                 OperatorId = operatorId,
                 ProbabilityOfCollision = 1,
-                CollisionDate = (DateTime.Now.AddDays(30).ToString("yyyyMMdd") +"T" + number + "000100Z").ToUniversalDateTimeOffset(),
+                CollisionDate = (DateTime.Now.AddDays(30).ToString("yyyyMMdd") + "T" + number + "000100Z")
+                    .ToUniversalDateTimeOffset(),
                 ChaserObjectId = "2016-" + number,
                 CreatedDate = DateTime.UtcNow
             };
@@ -140,7 +143,7 @@ namespace minimal_api_tests.IntegrationTests
             }
 
             //Act
-            var response = await _httpClient.GetAsync("/collisionalerts?operator_id_invoker=001");
+            var response = await _httpClient.GetAsync("/collisions/alerts/001");
 
             //Assert
             var responseData = await response.Content.ReadFromJsonAsync<List<CollisionStatusDto>>();
@@ -158,11 +161,11 @@ namespace minimal_api_tests.IntegrationTests
             Assert.NotNull(responseData);
             Assert.DoesNotContain(responseData,
                 item =>
-                item.satellite_id == expected.satellite_id &&
-                 item.earliest_collision_date == expected.earliest_collision_date &&
-                  item.highest_probability_of_collision == expected.highest_probability_of_collision &&
-                   item.chaser_object_id == expected.chaser_object_id
-                );
+                    item.satellite_id == expected.satellite_id &&
+                    item.earliest_collision_date == expected.earliest_collision_date &&
+                    item.highest_probability_of_collision == expected.highest_probability_of_collision &&
+                    item.chaser_object_id == expected.chaser_object_id
+            );
             Assert.True(responseData.Count > 0);
         }
 
@@ -191,7 +194,7 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PostAsJsonAsync("/collision?operator_id_invoker=" + operatorId, collision);
+            var response = await _httpClient.PostAsJsonAsync("/collision/" + operatorId, collision);
 
             //Assert
 
@@ -202,15 +205,14 @@ namespace minimal_api_tests.IntegrationTests
 
                 Assert.True(collisionsForOperatorId.Count > 0);
                 Assert.Contains(collisionsForOperatorId,
-                item =>
-                item.SatelliteId == collision.satellite_id &&
-                 item.CollisionDate == collision.collision_date.ToUniversalDateTimeOffset() &&
-                  Math.Abs(item.ProbabilityOfCollision - collision.probability_of_collision) < 9 &&
-                   item.ChaserObjectId == collision.chaser_object_id &&
-                   item.UpdatedDate.HasValue == false &&
-                    item.IsCanceled == false
+                    item =>
+                        item.SatelliteId == collision.satellite_id &&
+                        item.CollisionDate == collision.collision_date.ToUniversalDateTimeOffset() &&
+                        Math.Abs(item.ProbabilityOfCollision - collision.probability_of_collision) < 9 &&
+                        item.ChaserObjectId == collision.chaser_object_id &&
+                        item.UpdatedDate.HasValue == false &&
+                        item.IsCanceled == false
                 );
-
             }
 
             Assert.NotNull(response);
@@ -239,7 +241,7 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PostAsJsonAsync("/collision?operator_id_invoker=" + operatorId, collision);
+            var response = await _httpClient.PostAsJsonAsync("/collision/001", collision);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
@@ -255,7 +257,6 @@ namespace minimal_api_tests.IntegrationTests
         }
 
         [Theory]
-
         [InlineData(-1)]
         [InlineData(-1.232522)]
         [InlineData(-0.2)]
@@ -283,7 +284,7 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PostAsJsonAsync("/collision?operator_id_invoker=" + operatorId, collision);
+            var response = await _httpClient.PostAsJsonAsync("/collision/" + operatorId, collision);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
@@ -340,7 +341,8 @@ namespace minimal_api_tests.IntegrationTests
 
             //Act
             //try and post same messageId
-            var response = await _httpClient.PostAsJsonAsync("/collision?operator_id_invoker=" + operatorId, collisionDtoSameIdDifferentData);
+            var response =
+                await _httpClient.PostAsJsonAsync("/collision/" + operatorId, collisionDtoSameIdDifferentData);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
@@ -350,13 +352,13 @@ namespace minimal_api_tests.IntegrationTests
 
                 Assert.True(collisionsForOperatorId.Count == 1);
                 Assert.DoesNotContain(collisionsForOperatorId,
-                item =>
-                item.SatelliteId == collisionDtoSameIdDifferentData.satellite_id &&
-                 item.CollisionDate == collisionDtoSameIdDifferentData.collision_date.ToUniversalDateTimeOffset() &&
-                  item.ProbabilityOfCollision == collisionDtoSameIdDifferentData.probability_of_collision &&
-                   item.ChaserObjectId == collisionDtoSameIdDifferentData.chaser_object_id
+                    item =>
+                        item.SatelliteId == collisionDtoSameIdDifferentData.satellite_id &&
+                        item.CollisionDate ==
+                        collisionDtoSameIdDifferentData.collision_date.ToUniversalDateTimeOffset() &&
+                        item.ProbabilityOfCollision == collisionDtoSameIdDifferentData.probability_of_collision &&
+                        item.ChaserObjectId == collisionDtoSameIdDifferentData.chaser_object_id
                 );
-
             }
 
             Assert.NotNull(response);
@@ -366,7 +368,8 @@ namespace minimal_api_tests.IntegrationTests
         [Theory]
         [InlineData("20241210T20000100Z")]
         [InlineData("20241210T21000100Z")]
-        public async Task PostCollisionForOperatorWithValidIdWithOlderDateThanCurrentDateShouldNotInsert(string collisiondate)
+        public async Task PostCollisionForOperatorWithValidIdWithOlderDateThanCurrentDateShouldNotInsert(
+            string collisiondate)
         {
             //Arrange
 
@@ -437,7 +440,8 @@ namespace minimal_api_tests.IntegrationTests
 
             //Act
             //try and post same messageId
-            var response = await _httpClient.PostAsJsonAsync("/collision?operator_id_invoker=" + operatorId, collisionDtoWithOldercollisionDate);
+            var response =
+                await _httpClient.PostAsJsonAsync("/collision/" + operatorId, collisionDtoWithOldercollisionDate);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
@@ -447,18 +451,19 @@ namespace minimal_api_tests.IntegrationTests
 
                 Assert.True(collisionsForOperatorId.Count == 3);
                 Assert.DoesNotContain(collisionsForOperatorId,
-                item =>
-                item.SatelliteId == collisionDtoWithOldercollisionDate.satellite_id &&
-                 item.CollisionDate == collisionDtoWithOldercollisionDate.collision_date.ToUniversalDateTimeOffset() &&
-                  item.ProbabilityOfCollision == collisionDtoWithOldercollisionDate.probability_of_collision &&
-                   item.ChaserObjectId == collisionDtoWithOldercollisionDate.chaser_object_id
+                    item =>
+                        item.SatelliteId == collisionDtoWithOldercollisionDate.satellite_id &&
+                        item.CollisionDate ==
+                        collisionDtoWithOldercollisionDate.collision_date.ToUniversalDateTimeOffset() &&
+                        item.ProbabilityOfCollision == collisionDtoWithOldercollisionDate.probability_of_collision &&
+                        item.ChaserObjectId == collisionDtoWithOldercollisionDate.chaser_object_id
                 );
-
             }
 
             Assert.NotNull(response);
             Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         }
+
         #endregion
 
         #region collisioncancel
@@ -532,13 +537,14 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PatchAsJsonAsync("/collisioncancel?operator_id_invoker=" + operatorId, collisiondto);
+            var response = await _httpClient.PatchAsJsonAsync("/collision/" + operatorId, collisiondto);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
-                var collisionExpectedPatched = await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
+                var collisionExpectedPatched =
+                    await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
                 Assert.NotNull(collisionExpectedPatched);
                 Assert.True(collisionExpectedPatched.IsCanceled);
                 Assert.NotNull(collisionExpectedPatched.UpdatedDate);
@@ -617,13 +623,14 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PatchAsJsonAsync("/collisioncancel?operator_id_invoker=" + operatorId, collisiondto);
+            var response = await _httpClient.PatchAsJsonAsync("/collision/" + operatorId, collisiondto);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
-                var collisionNotExpectedPatched = await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
+                var collisionNotExpectedPatched =
+                    await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
                 Assert.Null(collisionNotExpectedPatched);
             }
 
@@ -632,7 +639,6 @@ namespace minimal_api_tests.IntegrationTests
         }
 
         [Theory]
-
         [InlineData(-1)]
         [InlineData(-1.232522)]
         [InlineData(-0.2)]
@@ -641,12 +647,12 @@ namespace minimal_api_tests.IntegrationTests
         [InlineData(1.2)]
         [InlineData(2.2)]
         public async Task PatchCollisionCancelNotValidRangeOfProbabilityShouldNotInsert(double probability)
-        {       
+        {
             //Arrange
             var satelliteId = "42-001";
             var number = 11;
             var operatorId = "CLS";
-            
+
             //expected collision to exist to be patched (canceled)
             var collisiondto = new CollisionDto()
             {
@@ -660,13 +666,14 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PatchAsJsonAsync("/collisioncancel?operator_id_invoker=" + operatorId, collisiondto);
+            var response = await _httpClient.PatchAsJsonAsync("/collision/" + operatorId, collisiondto);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
-                var collisionNotExpectedPatched = await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
+                var collisionNotExpectedPatched =
+                    await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
                 Assert.Null(collisionNotExpectedPatched);
             }
 
@@ -681,7 +688,7 @@ namespace minimal_api_tests.IntegrationTests
             var satelliteId = "42-001";
             var number = 11;
             var operatorId = "CLS";
-            
+
             //expected collision to exist to be patched (canceled)
             var collisiondto = new CollisionDto()
             {
@@ -695,13 +702,14 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PatchAsJsonAsync("/collisioncancel?operator_id_invoker=" + operatorId, collisiondto);
+            var response = await _httpClient.PatchAsJsonAsync("/collision/" + operatorId, collisiondto);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
-                var collisionNotExpectedPatched = await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
+                var collisionNotExpectedPatched =
+                    await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
                 Assert.Null(collisionNotExpectedPatched);
             }
 
@@ -716,7 +724,7 @@ namespace minimal_api_tests.IntegrationTests
             var satelliteId = "42-001";
             var number = 11;
             var operatorId = "CLS";
-            
+
             //expected collision to exist to be patched (canceled)
             var collisiondto = new CollisionDto()
             {
@@ -730,13 +738,14 @@ namespace minimal_api_tests.IntegrationTests
             };
 
             //Act
-            var response = await _httpClient.PatchAsJsonAsync("/collisioncancel?operator_id_invoker=" + operatorId, collisiondto);
+            var response = await _httpClient.PatchAsJsonAsync("/collision/" + operatorId, collisiondto);
 
             //Assert
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<CollisionDbContext>();
-                var collisionNotExpectedPatched = await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
+                var collisionNotExpectedPatched =
+                    await db.Collisions.FirstOrDefaultAsync(c => c.MessageId == collisiondto.message_id);
                 Assert.Null(collisionNotExpectedPatched);
             }
 

@@ -1,19 +1,2 @@
 @minimal_api_HostAddress = http://localhost:5159
 
-
-@operator_id_invoker=string
-POST {{minimal_api_HostAddress}}/collision?operator_id_invoker={{operator_id_invoker}}
-
-###
-
-GET {{minimal_api_HostAddress}}/collisionalerts?operator_id_invoker={{operator_id_invoker}}
-
-###
-
-PATCH {{minimal_api_HostAddress}}/collisioncancel?operator_id_invoker={{operator_id_invoker}}
-
-###
-
-GET {{minimal_api_HostAddress}}/collisionsforoperator?operator_id_invoker={{operator_id_invoker}}
-
-###
