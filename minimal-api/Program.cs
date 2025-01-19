@@ -6,6 +6,7 @@ using Asp.Versioning;
 using Asp.Versioning.Conventions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Scalar.AspNetCore;
 
 namespace minimal_api
 {
@@ -21,7 +22,7 @@ namespace minimal_api
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-
+            
             //create a service to handle all logic related to exercise
             builder.Services.AddScoped<ICollisionService, CollisionService>();
             //create a simple helper service to populate dummy data
@@ -40,8 +41,11 @@ namespace minimal_api
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwagger(options =>
+                {
+                    options.RouteTemplate = "/openapi/{documentName}.json";
+                });
+                app.MapScalarApiReference();
             }
 
             app.UseHttpsRedirection();
