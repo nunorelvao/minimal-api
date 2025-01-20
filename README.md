@@ -3,12 +3,10 @@
 ####  Nuno Relvao
 
 ## Description
-- This API is using new minimal APIs design using Microsoft .net Core 8.
+- This API is using new minimal APIs and REST design using Microsoft .net Core 8.
 - It is ready to be Dockerized .
 - It has Xunit tests.
-- The API has Swagger documentation at default endpoint /swagger using OAS 3.0.
-
-
+- The API has [Scalar](https://github.com/scalar/scalar) opensource documentation and is compatible with newest openapi standards.
 
 # To Run on Docker 
  - go to where the DockerFile is located.
